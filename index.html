@@ -1,44 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AnonBoard Chat</title>
-<link rel="stylesheet" href="style.css" />
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AnonBoard Messaging</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="usernameModal" class="modal">
-    <div class="modal-content">
-      <h2>Enter your username</h2>
-      <input id="usernameInput" type="text" placeholder="Username" autocomplete="off" />
-      <button id="usernameSubmit">Join Chat</button>
-      <p id="usernameError" class="error"></p>
-    </div>
-  </div>
 
-  <div id="app" class="hidden">
-    <div class="sidebar">
-      <h3>ONLINE</h3>
-      <ul id="onlineUsersList"></ul>
-    </div>
+  <div class="container">
 
-    <div class="main-area">
-      <div class="tabs" id="chatTabs">
-        <button class="tab active" data-chat="main">Main Chat</button>
+    <aside class="sidebar">
+      <h2>ONLINE</h2>
+      <ul id="onlineUsers" class="user-list"></ul>
+
+      <h2>CHATS</h2>
+      <ul id="chatList" class="user-list"></ul>
+    </aside>
+
+    <main class="main-area">
+      <div id="welcomeScreen" class="welcome-screen">
+        <h2>Welcome to AnonBoard!</h2>
+        <p>Select a chat to get started.</p>
       </div>
 
-      <div class="chat-window" id="chatWindow"></div>
+      <section id="chatWindow" class="chat-window hidden">
+        <div id="messages" class="messages"></div>
+        <form id="messageForm" class="message-form">
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Type a message..."
+            autocomplete="off"
+            required
+          />
+          <button type="submit">Send</button>
+        </form>
+      </section>
+    </main>
 
-      <form id="messageForm">
-        <input id="messageInput" autocomplete="off" placeholder="Type your message..." />
-        <button type="submit">Send</button>
-      </form>
-    </div>
   </div>
 
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

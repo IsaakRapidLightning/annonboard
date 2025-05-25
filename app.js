@@ -1,270 +1,158 @@
-// Your Firebase config here:
-const firebaseConfig = {
-  apiKey: "AIzaSyAXxWcJqSXuI8NBDYm6Qf9qIIiTgNEoGwo",
-  authDomain: "anonboard-3fe72.firebaseapp.com",
-  databaseURL: "https://anonboard-3fe72-default-rtdb.firebaseio.com",
-  projectId: "anonboard-3fe72",
-  storageBucket: "anonboard-3fe72.appspot.com",
-  messagingSenderId: "801615534660",
-  appId: "1:801615534660:web:8ee84ac7c2a96485353a11"
+// == AnonBoard Messaging app ==
+
+// DUMMY data for demo
+const users = ['Alice', 'Bob', 'Charlie', 'Dave', 'Eve'];
+
+// Chats structure
+// Key = username, value = array of messages
+// message = { from: 'self' | 'other', text: string, time: string, read: boolean }
+let chats = {
+  'Alice': [
+    {from: 'self', text: 'Hey Alice! How are you?', time: '10:00 AM', read: true},
+    {from: 'other', text: 'Hi! I am good, thanks!', time: '10:02 AM', read: true},
+  ],
+  'Bob': [
+    {from: 'other', text: 'Hey, ready for the game tonight?', time: '9:30 AM', read: false},
+  ],
+  'Charlie': [],
+  'Dave': [
+    {from: 'self', text: 'Hello Dave!', time: 'Yesterday', read: true},
+  ],
+  'Eve': []
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// DOM references
+const onlineUsersList = document.getElementById('onlineUsers');
+const chatList = document.getElementById('chatList');
+const welcomeScreen = document.getElementById('welcomeScreen');
+const chatWindow = document.getElementById('chatWindow');
+const messagesDiv = document.getElementById('messages');
+const messageForm = document.getElementById('messageForm');
+const messageInput = document.getElementById('messageInput');
 
-let username = null;
-let onlineUsersRef = null;
-let userStatusRef = null;
-let currentChat = "main"; // 'main' for main chat, or username string for private
-const onlineUsersList = document.getElementById("onlineUsersList");
-const chatTabs = document.getElementById("chatTabs");
-const chatWindow = document.getElementById("chatWindow");
-const messageForm = document.getElementById("messageForm");
-const messageInput = document.getElementById("messageInput");
+let currentChatUser = null; // Who is the current chat open with
 
-const usernameModal = document.getElementById("usernameModal");
-const usernameInput = document.getElementById("usernameInput");
-const usernameSubmit = document.getElementById("usernameSubmit");
-const usernameError = document.getElementById("usernameError");
-const appDiv = document.getElementById("app");
-
-let messagesRefs = {}; // To track listeners for private chats
-
-// On load: show username prompt
-usernameModal.style.display = "flex";
-
-usernameSubmit.onclick = trySetUsername;
-usernameInput.onkeypress = (e) => { if(e.key === "Enter") trySetUsername(); };
-
-async function trySetUsername() {
-  const name = usernameInput.value.trim();
-  if (!name) {
-    usernameError.textContent = "Please enter a username.";
-    return;
-  }
-  if (name.toLowerCase() === "main") {
-    usernameError.textContent = "'main' is reserved. Pick another.";
-    return;
-  }
-  // Check uniqueness by seeing if name exists in onlineUsers
-  const snapshot = await db.ref("onlineUsers/" + name).get();
-  if (snapshot.exists()) {
-    usernameError.textContent = "Username taken. Try another.";
-    return;
-  }
-  username = name;
-  usernameModal.style.display = "none";
-  appDiv.classList.remove("hidden");
-  startApp();
-}
-
-function startApp() {
-  setupPresence();
-  listenOnlineUsers();
-  setupTabs();
-  listenMainChat();
-}
-
-// User presence detection
-function setupPresence() {
-  const userRef = db.ref("onlineUsers/" + username);
-  userStatusRef = userRef;
-  // On disconnect remove user from onlineUsers
-  userRef
-    .onDisconnect()
-    .remove()
-    .then(() => {
-      userRef.set(true);
-    });
-}
-
-// Listen and render online users list (exclude self)
-function listenOnlineUsers() {
-  onlineUsersRef = db.ref("onlineUsers");
-  onlineUsersRef.on("value", (snapshot) => {
-    const users = snapshot.val() || {};
-    renderOnlineUsers(Object.keys(users).filter((u) => u !== username));
-  });
-}
-
-function renderOnlineUsers(users) {
-  onlineUsersList.innerHTML = "";
-  users.forEach((user) => {
-    const li = document.createElement("li");
+// Populate ONLINE users list
+function populateOnlineUsers() {
+  onlineUsersList.innerHTML = '';
+  users.forEach(user => {
+    const li = document.createElement('li');
     li.textContent = user;
-    li.title = `Click to open private chat with ${user}`;
-    li.onmouseenter = () => {
-      li.style.opacity = "0.6";
-      li.style.cursor = "pointer";
-    };
-    li.onmouseleave = () => {
-      li.style.opacity = "1";
-      li.style.cursor = "default";
-    };
-    li.onclick = () => openPrivateChat(user);
+    li.title = `Start chat with ${user}`;
+    li.onclick = () => openChat(user);
+    if (user === currentChatUser) {
+      li.classList.add('active');
+    }
     onlineUsersList.appendChild(li);
   });
 }
 
-// Tabs management
-function setupTabs() {
-  chatTabs.addEventListener("click", (e) => {
-    if (e.target.classList.contains("tab")) {
-      const newChat = e.target.getAttribute("data-chat");
-      if (newChat !== currentChat) {
-        switchChat(newChat);
+// Populate CHATS list - only show users with chats
+function populateChatList() {
+  chatList.innerHTML = '';
+  Object.keys(chats).forEach(user => {
+    if (chats[user] && chats[user].length > 0) {
+      const li = document.createElement('li');
+      li.textContent = user;
+      li.title = `Open chat with ${user}`;
+      li.onclick = () => openChat(user);
+      if (user === currentChatUser) {
+        li.classList.add('active');
       }
+      chatList.appendChild(li);
     }
   });
 }
 
-// Open or create a private chat tab
-function openPrivateChat(chatUser) {
-  if (chatUser === username) return; // can't chat with self
-  // Check if tab exists
-  if (![...chatTabs.children].some(tab => tab.getAttribute("data-chat") === chatUser)) {
-    // Create tab
-    const btn = document.createElement("button");
-    btn.classList.add("tab");
-    btn.textContent = chatUser;
-    btn.setAttribute("data-chat", chatUser);
-    chatTabs.appendChild(btn);
-  }
-  switchChat(chatUser);
+// Open chat with a user
+function openChat(user) {
+  currentChatUser = user;
+  welcomeScreen.classList.add('hidden');
+  chatWindow.classList.remove('hidden');
+  renderMessages(user);
+  populateOnlineUsers();
+  populateChatList();
+  messageInput.focus();
 }
 
-// Switch chat tabs
-function switchChat(newChat) {
-  // Remove active from all tabs
-  [...chatTabs.children].forEach(tab => tab.classList.remove("active"));
-  // Add active to selected tab
-  const tab = [...chatTabs.children].find(t => t.getAttribute("data-chat") === newChat);
-  if (tab) tab.classList.add("active");
-  currentChat = newChat;
-  // Clear chat window and load messages
-  loadChatMessages(newChat);
-}
+// Render chat messages for a user
+function renderMessages(user) {
+  messagesDiv.innerHTML = '';
+  const userChats = chats[user] || [];
+  userChats.forEach(msg => {
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message');
+    msgDiv.classList.add(msg.from === 'self' ? 'self' : 'other');
+    msgDiv.textContent = msg.text;
 
-// Listen and render main chat messages
-function listenMainChat() {
-  const mainChatRef = db.ref("mainChat/messages");
-  mainChatRef.on("value", (snapshot) => {
-    if (currentChat === "main") {
-      renderMessages(snapshot.val());
-    }
-  });
-}
+    // Timestamp line
+    const metaDiv = document.createElement('div');
+    metaDiv.classList.add('meta');
+    metaDiv.textContent = msg.time;
 
-// Load and listen to chat messages for given chat
-function loadChatMessages(chatId) {
-  chatWindow.innerHTML = "Loading...";
-  // Remove old listeners
-  Object.values(messagesRefs).forEach(ref => ref.off());
-  messagesRefs = {};
-
-  if (chatId === "main") {
-    // Listen main chat messages
-    const mainChatRef = db.ref("mainChat/messages");
-    messagesRefs["main"] = mainChatRef;
-    mainChatRef.on("value", (snapshot) => {
-      if (currentChat === "main") {
-        renderMessages(snapshot.val());
-      }
-    });
-  } else {
-    // Private chat between username and chatId
-    const chatKey = getPrivateChatKey(username, chatId);
-    const privateChatRef = db.ref(`privateChats/${chatKey}/messages`);
-    messagesRefs[chatKey] = privateChatRef;
-    privateChatRef.on("value", (snapshot) => {
-      if (currentChat === chatId) {
-        renderMessages(snapshot.val(), true, chatId);
-        markMessagesRead(chatKey, chatId);
-      }
-    });
-  }
-}
-
-// Format private chat key to be alphabetical to avoid duplication
-function getPrivateChatKey(userA, userB) {
-  return [userA, userB].sort().join("_");
-}
-
-// Render messages in chat window
-function renderMessages(messagesObj, isPrivate = false, otherUser = null) {
-  chatWindow.innerHTML = "";
-  if (!messagesObj) return;
-  const messages = Object.values(messagesObj);
-  messages.forEach(msg => {
-    const div = document.createElement("div");
-    div.classList.add("message");
-    div.classList.add(msg.sender === username ? "self" : "other");
-    div.textContent = msg.text;
-
-    // Metadata line
-    const meta = document.createElement("div");
-    meta.classList.add("meta");
-    const time = new Date(msg.timestamp);
-    meta.textContent = `${msg.sender} • ${time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-    div.appendChild(meta);
-
-    // Read receipt (only for self messages in private chats)
-    if (isPrivate && msg.sender === username) {
-      const receipt = document.createElement("span");
-      receipt.classList.add("read-receipt");
-      receipt.textContent = msg.readBy && msg.readBy.includes(otherUser) ? "✓" : "";
-      div.appendChild(receipt);
+    // Read receipt for self messages if read
+    if (msg.from === 'self' && msg.read) {
+      const readSpan = document.createElement('span');
+      readSpan.classList.add('read-receipt');
+      readSpan.textContent = ' ✓✓';
+      metaDiv.appendChild(readSpan);
     }
 
-    chatWindow.appendChild(div);
+    msgDiv.appendChild(metaDiv);
+    messagesDiv.appendChild(msgDiv);
   });
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-// Mark messages as read by current user in private chats
-function markMessagesRead(chatKey, otherUser) {
-  const privateChatRef = db.ref(`privateChats/${chatKey}/messages`);
-  privateChatRef.once("value").then(snapshot => {
-    const messages = snapshot.val() || {};
-    const updates = {};
-    Object.entries(messages).forEach(([key, msg]) => {
-      if (msg.sender !== username) {
-        // Mark readBy array includes username
-        if (!msg.readBy || !msg.readBy.includes(username)) {
-          updates[key + "/readBy"] = msg.readBy ? [...msg.readBy, username] : [username];
-        }
-      }
-    });
-    if (Object.keys(updates).length > 0) {
-      privateChatRef.update(updates);
-    }
-  });
+// Utility: get formatted current time (like 1:05 PM)
+function getCurrentTime() {
+  const now = new Date();
+  let h = now.getHours();
+  const m = now.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  h = h ? h : 12; // hour '0' should be 12
+  const mStr = m < 10 ? '0'+m : m;
+  return `${h}:${mStr} ${ampm}`;
 }
 
 // Send message handler
-messageForm.addEventListener("submit", (e) => {
+messageForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const text = messageInput.value.trim();
-  if (!text) return;
+  if(!text || !currentChatUser) return;
 
-  const timestamp = Date.now();
-  if (currentChat === "main") {
-    const newMsgRef = db.ref("mainChat/messages").push();
-    newMsgRef.set({
-      sender: username,
-      text,
-      timestamp
+  const timeStr = getCurrentTime();
+
+  // Add message to chat history
+  if(!chats[currentChatUser]) chats[currentChatUser] = [];
+  chats[currentChatUser].push({from: 'self', text, time: timeStr, read: false});
+
+  // Update UI
+  renderMessages(currentChatUser);
+  populateChatList();
+
+  // Clear input
+  messageInput.value = '';
+
+  // Simulate auto-reply after 1.2 seconds (for demo)
+  setTimeout(() => {
+    chats[currentChatUser].push({
+      from: 'other',
+      text: "Auto-reply: Got your message!",
+      time: getCurrentTime(),
+      read: true
     });
-  } else {
-    const chatKey = getPrivateChatKey(username, currentChat);
-    const newMsgRef = db.ref(`privateChats/${chatKey}/messages`).push();
-    newMsgRef.set({
-      sender: username,
-      text,
-      timestamp,
-      readBy: [username] // sender read by default
+    renderMessages(currentChatUser);
+    populateChatList();
+
+    // Mark self messages as read after reply (simulate)
+    chats[currentChatUser].forEach(msg => {
+      if(msg.from === 'self') msg.read = true;
     });
-  }
-  messageInput.value = "";
+  }, 1200);
 });
+
+// Initialize UI
+populateOnlineUsers();
+populateChatList();
