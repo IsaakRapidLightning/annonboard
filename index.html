@@ -1,22 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AnonBoard</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AnonBoard Chat</title>
+<link rel="stylesheet" href="style.css" />
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
-  <h1>💬 AnonBoard</h1>
+  <div id="usernameModal" class="modal">
+    <div class="modal-content">
+      <h2>Enter your username</h2>
+      <input id="usernameInput" type="text" placeholder="Username" autocomplete="off" />
+      <button id="usernameSubmit">Join Chat</button>
+      <p id="usernameError" class="error"></p>
+    </div>
+  </div>
 
-  <form id="message-form">
-    <textarea id="message-input" placeholder="Type your message..." maxlength="300"></textarea>
-    <button type="submit">Send</button>
-  </form>
+  <div id="app" class="hidden">
+    <div class="sidebar">
+      <h3>ONLINE</h3>
+      <ul id="onlineUsersList"></ul>
+    </div>
 
-  <div id="messages-container"></div>
+    <div class="main-area">
+      <div class="tabs" id="chatTabs">
+        <button class="tab active" data-chat="main">Main Chat</button>
+      </div>
 
-  <!-- Firebase SDK -->
-  <script type="module" src="app.js"></script>
+      <div class="chat-window" id="chatWindow"></div>
+
+      <form id="messageForm">
+        <input id="messageInput" autocomplete="off" placeholder="Type your message..." />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+
+<script src="app.js"></script>
 </body>
 </html>
